@@ -1,13 +1,15 @@
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
-from django.contrib.auth import login
+#from django.contrib.auth import login
+from rest_framework.authtoken.models import Token
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.http import Http404
-
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
 
 from .models import Message
 from .serializers import MessageSerializer
@@ -18,8 +20,11 @@ class SignUpAPIView(APIView):
         form = UserCreationForm(request.POST)
         if form.is_valid():
             user = form.save()
-            login(request, user)  # Automatically log in the user after sign up
-            return Response({'message': 'User created successfully'}, status=status.HTTP_201_CREATED)
+            #login(request, user)  # Automatically log in the user after sign up
+            token, created = Token.objects.get_or_create(user=user)
+            
+            return Response({'message': 'User created successfully', 'token': token.key}, status=status.HTTP_201_CREATED)
+            #return Response({'message': 'User created successfully'}, status=status.HTTP_201_CREATED)
         else:
             return Response(form.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -28,13 +33,19 @@ class LoginAPIView(APIView):
     def post(self, request):
         form = AuthenticationForm(request, data=request.POST)
         if form.is_valid():
-            login(request, form.get_user())
+            #login(request, form.get_user())
+            user = form.get_user()
+            token, created = Token.objects.get_or_create(user=user)
+            
             return Response({'message': 'Login successful'}, status=status.HTTP_200_OK)
         else:
             return Response({'error': 'Invalid username or password'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 class MessageListCreateAPIView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+    
     def get(self, request):
         messages = Message.objects.filter(sender=request.user)
         
@@ -51,6 +62,7 @@ class MessageListCreateAPIView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class MessageRetrieveDestroyAPIView(APIView):
     def get_object(self, pk):
