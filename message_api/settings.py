@@ -67,7 +67,7 @@ WSGI_APPLICATION = 'message_api.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'django-app-db',
+        'NAME': 'MESSAGESAPI',
         'USER': 'admin',
         'PASSWORD': 'ruthmaster',
         'HOST': 'django-app-db.c2nuqezq38vs.il-central-1.rds.amazonaws.com',
@@ -88,7 +88,7 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        'NAME': 'lango.contrib.auth.password_validation.CommonPasswordValidator',
     },
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
