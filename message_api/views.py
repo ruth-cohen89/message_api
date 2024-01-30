@@ -5,6 +5,9 @@ from django.contrib.auth import login
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from django.shortcuts import get_object_or_404
+from django.http import Http404
+
 
 from .models import Message
 from .serializers import MessageSerializer
@@ -49,53 +52,22 @@ class MessageListCreateAPIView(APIView):
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class MessageRetrieveUpdateDestroyAPIView(APIView):
+class MessageRetrieveDestroyAPIView(APIView):
     def get_object(self, pk):
-        try:
-            return Message.objects.get(pk=pk)
-        except Message.DoesNotExist:
-            return Response({'error': 'Message not found'}, status=status.HTTP_404_NOT_FOUND)
+        return get_object_or_404(Message, pk=pk)
 
     def get(self, request, pk):
-        message = self.get_object(pk)
-        serializer = MessageSerializer(message)
-        return Response(serializer.data)
-    
-# class MessageRetrieveUpdateDestroyAPIView(APIView):
-#     def get_object(self, pk):
-#         try:
-#             return Message.objects.get(pk=pk)
-#         except Message.DoesNotExist:
-#             return Response({'error': 'Message not found'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            message = self.get_object(pk)
+            serializer = MessageSerializer(message)
+            return Response(serializer.data)
+        except Http404:
+            return Response({'error': 'Message not found'}, status=status.HTTP_404_NOT_FOUND)
 
-#     def get(self, request, pk):
-#         message = self.get_object(pk)
-#         serializer = MessageSerializer(message)
-#         return Response(serializer.data)
-
-#     def put(self, request, pk):
-#         message = self.get_object(pk)
-#         serializer = MessageSerializer(message, data=request.data)
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response(serializer.data)
-#         else:
-#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-#     def delete(self, request, pk):
-#         message = self.get_object(pk)
-#         message.delete()
-#         return Response({'message': 'Message deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
-    
-# class MessageListCreateAPIView(generics.ListCreateAPIView):
-#     queryset = Message.objects.all()
-#     serializer_class = MessageSerializer
-#     #permission_classes = [IsAuthenticated]
-
-#     def perform_create(self, serializer):
-#         serializer.save(sender=self.request.user)
-
-# class MessageRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
-#     queryset = Message.objects.all()
-#     serializer_class = MessageSerializer
-#     #permission_classes = [IsAuthenticated]
+    def delete(self, request, pk):
+        try:
+            message = self.get_object(pk)
+            message.delete()
+            return Response({'message': 'Message deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+        except Http404:
+            return Response({'error': 'Message not found'}, status=status.HTTP_404_NOT_FOUND)   
