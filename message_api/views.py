@@ -34,6 +34,10 @@ class LoginAPIView(APIView):
 class MessageListCreateAPIView(APIView):
     def get(self, request):
         messages = Message.objects.filter(sender=request.user)
+        
+        if not messages.exists():
+            return Response({"detail": "No messages found for this user."})
+        
         serializer = MessageSerializer(messages, many=True)
         return Response(serializer.data)
 
