@@ -37,7 +37,7 @@ class LoginAPIView(APIView):
             user = form.get_user()
             token, created = Token.objects.get_or_create(user=user)
             
-            return Response({'message': 'Login successful'}, status=status.HTTP_200_OK)
+            return Response({'message': 'Login successful', 'token': token.key}, status=status.HTTP_200_OK)
         else:
             return Response({'error': 'Invalid username or password'}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -47,7 +47,7 @@ class MessageListCreateAPIView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        messages = Message.objects.filter(sender=request.user)
+        messages = Message.objects.filter(receiver=request.user)
         
         if not messages.exists():
             return Response({"detail": "No messages found for this user."})
@@ -63,14 +63,36 @@ class MessageListCreateAPIView(APIView):
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
+class UnreadMessagesAPIView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        unread_messages = Message.objects.filter(receiver=request.user, is_read=False)
+        
+        if not unread_messages.exists():
+            return Response({"detail": "No unread messages found for this user."})
+        
+        serializer = MessageSerializer(unread_messages, many=True)
+        return Response(serializer.data)
+    
 class MessageRetrieveDestroyAPIView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+   
     def get_object(self, pk):
         return get_object_or_404(Message, pk=pk)
 
     def get(self, request, pk):
         try:
             message = self.get_object(pk)
+            
+            # Check if the logged-in user is the receiver of the message
+            if request.user == message.receiver:
+                # Update the is_read field to True when the user (receiver) reads the message
+                message.is_read = True
+                message.save()
+                
             serializer = MessageSerializer(message)
             return Response(serializer.data)
         except Http404:
