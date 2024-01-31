@@ -12,13 +12,16 @@ from rest_framework.permissions import IsAuthenticated
 from .models import Message
 from .serializers import MessageSerializer
 
+def get_or_create_token(user):
+    token, created = Token.objects.get_or_create(user=user)
+    return token
 
 class SignUpAPIView(APIView):
     def post(self, request):
         form = UserCreationForm(request.POST)
         if form.is_valid():
             user = form.save()
-            token, created = Token.objects.get_or_create(user=user)
+            token = get_or_create_token(user)
             
             return Response({'message': 'User created successfully', 'token': token.key}, status=status.HTTP_201_CREATED)
         else:
@@ -30,7 +33,7 @@ class LoginAPIView(APIView):
         form = AuthenticationForm(request, data=request.POST)
         if form.is_valid():
             user = form.get_user()
-            token, created = Token.objects.get_or_create(user=user)
+            token = get_or_create_token(user)
             
             return Response({'message': 'Login successful', 'token': token.key}, status=status.HTTP_200_OK)
         else:
