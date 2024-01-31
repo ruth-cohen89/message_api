@@ -1,7 +1,5 @@
-from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
-#from django.contrib.auth import login
 from rest_framework.authtoken.models import Token
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -20,11 +18,9 @@ class SignUpAPIView(APIView):
         form = UserCreationForm(request.POST)
         if form.is_valid():
             user = form.save()
-            #login(request, user)  # Automatically log in the user after sign up
             token, created = Token.objects.get_or_create(user=user)
             
             return Response({'message': 'User created successfully', 'token': token.key}, status=status.HTTP_201_CREATED)
-            #return Response({'message': 'User created successfully'}, status=status.HTTP_201_CREATED)
         else:
             return Response(form.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -33,7 +29,6 @@ class LoginAPIView(APIView):
     def post(self, request):
         form = AuthenticationForm(request, data=request.POST)
         if form.is_valid():
-            #login(request, form.get_user())
             user = form.get_user()
             token, created = Token.objects.get_or_create(user=user)
             
@@ -87,9 +82,7 @@ class MessageRetrieveDestroyAPIView(APIView):
         try:
             message = self.get_object(pk)
             
-            # Check if the logged-in user is the receiver of the message
             if request.user == message.receiver:
-                # Update the is_read field to True when the user (receiver) reads the message
                 message.is_read = True
                 message.save()
                 
