@@ -8,6 +8,8 @@ from django.shortcuts import get_object_or_404
 from django.http import Http404
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import generics
+from rest_framework.exceptions import PermissionDenied
 
 from .models import Message
 from .serializers import MessageSerializer
@@ -15,6 +17,7 @@ from .serializers import MessageSerializer
 def get_or_create_token(user):
     token, created = Token.objects.get_or_create(user=user)
     return token
+
 
 class SignUpAPIView(APIView):
     def post(self, request):
@@ -39,27 +42,39 @@ class LoginAPIView(APIView):
         else:
             return Response({'error': 'Invalid username or password'}, status=status.HTTP_401_UNAUTHORIZED)
 
-
-class MessageListCreateAPIView(APIView):
+class MessageListCreateAPIView(generics.ListCreateAPIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
-    
-    def get(self, request):
-        messages = Message.objects.filter(receiver=request.user)
-        
-        if not messages.exists():
-            return Response({"detail": "No messages found for this user."})
-        
-        serializer = MessageSerializer(messages, many=True)
-        return Response(serializer.data)
+    serializer_class = MessageSerializer
 
-    def post(self, request):
-        serializer = MessageSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(sender=request.user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def get_queryset(self):
+        return Message.objects.filter(receiver=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(sender=self.request.user)
+        
+        
+# class MessageListCreateAPIView(APIView):
+#     authentication_classes = [TokenAuthentication]
+#     permission_classes = [IsAuthenticated]
+    
+#     def get(self, request):
+#         messages = Message.objects.filter(receiver=request.user)
+        
+#         if not messages.exists():
+#             return Response({"detail": "No messages found for this user."})
+        
+#         serializer = MessageSerializer(messages, many=True)
+#         return Response(serializer.data)
+
+#     def post(self, request):
+#         serializer = MessageSerializer(data=request.data)
+#         if serializer.is_valid():
+#             serializer.save(sender=request.user)
+#             return Response(serializer.data, status=status.HTTP_201_CREATED)
+#         else:
+#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class UnreadMessagesAPIView(APIView):
     authentication_classes = [TokenAuthentication]
@@ -74,8 +89,40 @@ class UnreadMessagesAPIView(APIView):
         serializer = MessageSerializer(unread_messages, many=True)
         return Response(serializer.data)
     
-class MessageRetrieveDestroyAPIView(APIView):
+
+class MessageRetrieveDestroyAPIView(generics.RetrieveDestroyAPIView):
     authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = MessageSerializer
+
+    def get_object(self):
+        return get_object_or_404(Message, pk=self.kwargs['pk'])
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        
+        if request.user == instance.receiver:
+            instance.is_read = True
+            instance.save()
+            
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        if request.user == instance.sender or request.user == instance.receiver:
+            self.perform_destroy(instance)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        else:
+            raise PermissionDenied("You do not have permission to delete this message.")
+ 
+    # def perform_destroy(self, instance):
+    #     instance.delete()
+
+    
+    
+#  authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
    
     def get_object(self, pk):
