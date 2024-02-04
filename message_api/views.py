@@ -53,28 +53,6 @@ class MessageListCreateAPIView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         serializer.save(sender=self.request.user)
         
-        
-# class MessageListCreateAPIView(APIView):
-#     authentication_classes = [TokenAuthentication]
-#     permission_classes = [IsAuthenticated]
-    
-#     def get(self, request):
-#         messages = Message.objects.filter(receiver=request.user)
-        
-#         if not messages.exists():
-#             return Response({"detail": "No messages found for this user."})
-        
-#         serializer = MessageSerializer(messages, many=True)
-#         return Response(serializer.data)
-
-#     def post(self, request):
-#         serializer = MessageSerializer(data=request.data)
-#         if serializer.is_valid():
-#             serializer.save(sender=request.user)
-#             return Response(serializer.data, status=status.HTTP_201_CREATED)
-#         else:
-#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 class UnreadMessagesAPIView(APIView):
     authentication_classes = [TokenAuthentication]
@@ -100,7 +78,7 @@ class MessageRetrieveDestroyAPIView(generics.RetrieveDestroyAPIView):
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        
+                
         if request.user == instance.receiver:
             instance.is_read = True
             instance.save()
@@ -112,39 +90,43 @@ class MessageRetrieveDestroyAPIView(generics.RetrieveDestroyAPIView):
         instance = self.get_object()
 
         if request.user == instance.sender or request.user == instance.receiver:
-            self.perform_destroy(instance)
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            instance.delete()
+            return Response({'message': 'Message deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
         else:
             raise PermissionDenied("You do not have permission to delete this message.")
- 
-    # def perform_destroy(self, instance):
-    #     instance.delete()
 
+     #     try:
+    #         message = self.get_object(pk)
+    #         message.delete()
+    #         return Response({'message': 'Message deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+        # except Http404:
+        #     return Response({'error': 'Message not found'}, status=status.HTTP_404_NOT_FOUND)  
+    
     
     
 #  authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
    
-    def get_object(self, pk):
-        return get_object_or_404(Message, pk=pk)
+    # def get_object(self, pk):
+    #     return get_object_or_404(Message, pk=pk)
 
-    def get(self, request, pk):
-        try:
-            message = self.get_object(pk)
+    # def get(self, request, pk):
+    #     try:
+    #         message = self.get_object(pk)
             
-            if request.user == message.receiver:
-                message.is_read = True
-                message.save()
+    #         if request.user == message.receiver:
+    #             message.is_read = True
+    #             message.save()
                 
-            serializer = MessageSerializer(message)
-            return Response(serializer.data)
-        except Http404:
-            return Response({'error': 'Message not found'}, status=status.HTTP_404_NOT_FOUND)
+    #         serializer = MessageSerializer(message)
+    #         return Response(serializer.data)
+    #     except Http404:
+    #         return Response({'error': 'Message not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    def delete(self, request, pk):
-        try:
-            message = self.get_object(pk)
-            message.delete()
-            return Response({'message': 'Message deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
-        except Http404:
-            return Response({'error': 'Message not found'}, status=status.HTTP_404_NOT_FOUND)   
+    # def delete(self, request, pk):
+    #     try:
+    #         message = self.get_object(pk)
+    #         message.delete()
+    #         return Response({'message': 'Message deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+    #     except Http404:
+    #         return Response({'error': 'Message not found'}, status=status.HTTP_404_NOT_FOUND)   
