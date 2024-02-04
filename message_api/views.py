@@ -1,7 +1,5 @@
-from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
-#from django.contrib.auth import login
 from rest_framework.authtoken.models import Token
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -10,9 +8,15 @@ from django.shortcuts import get_object_or_404
 from django.http import Http404
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import generics
+from rest_framework.exceptions import PermissionDenied
 
 from .models import Message
 from .serializers import MessageSerializer
+
+def get_or_create_token(user):
+    token, created = Token.objects.get_or_create(user=user)
+    return token
 
 
 class SignUpAPIView(APIView):
@@ -20,11 +24,9 @@ class SignUpAPIView(APIView):
         form = UserCreationForm(request.POST)
         if form.is_valid():
             user = form.save()
-            #login(request, user)  # Automatically log in the user after sign up
-            token, created = Token.objects.get_or_create(user=user)
+            token = get_or_create_token(user)
             
             return Response({'message': 'User created successfully', 'token': token.key}, status=status.HTTP_201_CREATED)
-            #return Response({'message': 'User created successfully'}, status=status.HTTP_201_CREATED)
         else:
             return Response(form.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -33,35 +35,24 @@ class LoginAPIView(APIView):
     def post(self, request):
         form = AuthenticationForm(request, data=request.POST)
         if form.is_valid():
-            #login(request, form.get_user())
             user = form.get_user()
-            token, created = Token.objects.get_or_create(user=user)
+            token = get_or_create_token(user)
             
             return Response({'message': 'Login successful', 'token': token.key}, status=status.HTTP_200_OK)
         else:
             return Response({'error': 'Invalid username or password'}, status=status.HTTP_401_UNAUTHORIZED)
 
-
-class MessageListCreateAPIView(APIView):
+class MessageListCreateAPIView(generics.ListCreateAPIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
-    
-    def get(self, request):
-        messages = Message.objects.filter(receiver=request.user)
-        
-        if not messages.exists():
-            return Response({"detail": "No messages found for this user."})
-        
-        serializer = MessageSerializer(messages, many=True)
-        return Response(serializer.data)
+    serializer_class = MessageSerializer
 
-    def post(self, request):
-        serializer = MessageSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(sender=request.user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def get_queryset(self):
+        return Message.objects.filter(receiver=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(sender=self.request.user)
+        
 
 class UnreadMessagesAPIView(APIView):
     authentication_classes = [TokenAuthentication]
@@ -76,32 +67,66 @@ class UnreadMessagesAPIView(APIView):
         serializer = MessageSerializer(unread_messages, many=True)
         return Response(serializer.data)
     
-class MessageRetrieveDestroyAPIView(APIView):
+
+class MessageRetrieveDestroyAPIView(generics.RetrieveDestroyAPIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
-   
-    def get_object(self, pk):
-        return get_object_or_404(Message, pk=pk)
+    serializer_class = MessageSerializer
 
-    def get(self, request, pk):
-        try:
-            message = self.get_object(pk)
-            
-            # Check if the logged-in user is the receiver of the message
-            if request.user == message.receiver:
-                # Update the is_read field to True when the user (receiver) reads the message
-                message.is_read = True
-                message.save()
+    def get_object(self):
+        return get_object_or_404(Message, pk=self.kwargs['pk'])
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
                 
-            serializer = MessageSerializer(message)
-            return Response(serializer.data)
-        except Http404:
-            return Response({'error': 'Message not found'}, status=status.HTTP_404_NOT_FOUND)
+        if request.user == instance.receiver:
+            instance.is_read = True
+            instance.save()
+            
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
 
-    def delete(self, request, pk):
-        try:
-            message = self.get_object(pk)
-            message.delete()
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        if request.user == instance.sender or request.user == instance.receiver:
+            instance.delete()
             return Response({'message': 'Message deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
-        except Http404:
-            return Response({'error': 'Message not found'}, status=status.HTTP_404_NOT_FOUND)   
+        else:
+            raise PermissionDenied("You do not have permission to delete this message.")
+
+     #     try:
+    #         message = self.get_object(pk)
+    #         message.delete()
+    #         return Response({'message': 'Message deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+        # except Http404:
+        #     return Response({'error': 'Message not found'}, status=status.HTTP_404_NOT_FOUND)  
+    
+    
+    
+#  authentication_classes = [TokenAuthentication]
+    # permission_classes = [IsAuthenticated]
+   
+    # def get_object(self, pk):
+    #     return get_object_or_404(Message, pk=pk)
+
+    # def get(self, request, pk):
+    #     try:
+    #         message = self.get_object(pk)
+            
+    #         if request.user == message.receiver:
+    #             message.is_read = True
+    #             message.save()
+                
+    #         serializer = MessageSerializer(message)
+    #         return Response(serializer.data)
+    #     except Http404:
+    #         return Response({'error': 'Message not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # def delete(self, request, pk):
+    #     try:
+    #         message = self.get_object(pk)
+    #         message.delete()
+    #         return Response({'message': 'Message deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+    #     except Http404:
+    #         return Response({'error': 'Message not found'}, status=status.HTTP_404_NOT_FOUND)   
